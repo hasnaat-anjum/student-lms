@@ -27,4 +27,13 @@ describe("student profile-photo privacy policy", () => {
     expect(canViewProfilePhoto("teacher", restored)).toBe(true);
     expect(canViewProfilePhoto("classmate", restored)).toBe(true);
   });
+
+  it("covers every teacher and classmate preview combination", () => {
+    const visibleToEveryone = { visibleToTeachers: true, visibleToClassmates: true };
+    const hiddenFromEveryone = { visibleToTeachers: false, visibleToClassmates: false };
+    expect(canViewProfilePhoto("teacher", visibleToEveryone)).toBe(true);
+    expect(canViewProfilePhoto("classmate", visibleToEveryone)).toBe(true);
+    expect(canViewProfilePhoto("teacher", hiddenFromEveryone)).toBe(false);
+    expect(canViewProfilePhoto("classmate", hiddenFromEveryone)).toBe(false);
+  });
 });

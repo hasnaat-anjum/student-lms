@@ -56,3 +56,7 @@
 - [x] Verify teacher and classmate photo-privacy controls alter visible avatars and persist across portal views.
 - [x] Exercise and verify both hidden and visible profile-photo states across student, teacher, and classmate views.
 - [x] Add automated coverage for photo-privacy toggle state changes and persistence-keyed audience behavior.
+- [x] Add a student “View As” profile preview for teacher and classmate audiences.
+- [x] Verify the preview accurately reflects both visible and hidden profile-photo privacy states on desktop and mobile.
+- [x] Verify the teacher and classmate selector states against visible and hidden privacy combinations.
+- [x] Add automated coverage for all teacher and classmate “View As” visible/hidden combinations.
