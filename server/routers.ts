@@ -4,6 +4,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
+import { getMonthlyInstitutionTrends } from "./db";
 import { createCloudinaryUploadSignature, createPaymentInitiation, getIntegrationReadiness, PAYMENT_PROVIDERS } from "./integrations";
 
 export type LmsRole = "admin" | "teacher" | "student";
@@ -97,6 +98,11 @@ export const appRouter = router({
           now: new Date("2026-08-22"),
         }),
       ),
+  }),
+  analytics: router({
+    monthlyTrends: publicProcedure
+      .input(z.object({ months: z.number().int().min(1).max(24).default(6) }))
+      .query(({ input }) => getMonthlyInstitutionTrends(input.months)),
   }),
   integrations: router({
     readiness: publicProcedure.query(() => getIntegrationReadiness()),

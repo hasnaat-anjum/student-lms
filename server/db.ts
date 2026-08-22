@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { attendanceRecords, feePayments, InsertUser, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,52 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+export type MonthlyInstitutionTrend = {
+  month: string;
+  fees: number;
+  attendance: number | null;
+};
+
+export function mergeMonthlyInstitutionTrendRows(
+  feeRows: Array<{ month: string | null; fees: string | number }>,
+  attendanceRows: Array<{ month: string | null; attendance: string | number | null }>,
+): MonthlyInstitutionTrend[] {
+  const data = new Map<string, MonthlyInstitutionTrend>();
+  for (const row of feeRows) {
+    if (!row.month) continue;
+    data.set(String(row.month), { month: String(row.month), fees: Number(row.fees), attendance: null });
+  }
+  for (const row of attendanceRows) {
+    if (!row.month) continue;
+    const current = data.get(String(row.month)) ?? { month: String(row.month), fees: 0, attendance: null };
+    current.attendance = row.attendance === null ? null : Number(row.attendance);
+    data.set(String(row.month), current);
+  }
+  return Array.from(data.values()).sort((a, b) => a.month.localeCompare(b.month));
+}
+
+export async function getMonthlyInstitutionTrends(months = 6): Promise<MonthlyInstitutionTrend[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const start = new Date();
+  start.setUTCDate(1);
+  start.setUTCHours(0, 0, 0, 0);
+  start.setUTCMonth(start.getUTCMonth() - Math.max(0, months - 1));
+  const startDate = start.toISOString().slice(0, 10);
+  const feeMonth = sql<string>`DATE_FORMAT(${feePayments.paidAt}, '%Y-%m')`.as("month");
+  const attendanceMonth = sql<string>`DATE_FORMAT(${attendanceRecords.recordedOn}, '%Y-%m')`.as("month");
+
+  const [feeRows, attendanceRows] = await Promise.all([
+    db.select({
+      month: feeMonth,
+      fees: sql<string>`COALESCE(SUM(${feePayments.amountPkr}), 0)`,
+    }).from(feePayments).where(and(eq(feePayments.status, "paid"), sql`${feePayments.paidAt} >= ${startDate}`)).groupBy(sql`month`).orderBy(sql`month`),
+    db.select({
+      month: attendanceMonth,
+      attendance: sql<string>`ROUND(AVG(CASE WHEN ${attendanceRecords.status} = 'present' THEN 100 ELSE 0 END), 1)`,
+    }).from(attendanceRecords).where(sql`${attendanceRecords.recordedOn} >= DATE(${startDate})`).groupBy(sql`month`).orderBy(sql`month`),
+  ]);
+
+  return mergeMonthlyInstitutionTrendRows(feeRows, attendanceRows);
+}

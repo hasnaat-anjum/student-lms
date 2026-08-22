@@ -28,3 +28,7 @@
 - [x] Stabilize compact mobile register column widths for consistent header and control alignment.
 - [x] Add an admin dashboard chart comparing monthly fee collection and attendance trends.
 - [x] Verify the new admin trend chart at desktop and mobile breakpoints.
+- [x] Inspect available fee and attendance database records for chart aggregation.
+- [x] Add persistent fee and attendance tables plus a monthly chart aggregation API.
+- [x] Replace the administrator chart demonstration series with its live database query and empty state.
+- [x] Test the database-backed chart query and verify the dashboard output.
