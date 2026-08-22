@@ -35,3 +35,5 @@
 - [x] Improve mobile dashboard hierarchy, responsive spacing, and touch-friendly controls.
 - [x] Refine mobile navigation and dense portal views for faster, clearer student, teacher, and administrator workflows.
 - [x] Verify the updated mobile LMS experience across representative role screens.
+- [x] Add a mobile-friendly settings page for fee reminder and announcement notification preferences.
+- [x] Add settings navigation access and verify preference interactions across role portals.

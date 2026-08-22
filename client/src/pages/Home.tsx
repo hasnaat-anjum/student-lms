@@ -35,8 +35,9 @@ import { toast } from "sonner";
 
 type Locale = "en" | "ur";
 type Role = "admin" | "teacher" | "student";
-type Page = "overview" | "students" | "teachers" | "courses" | "fees" | "attendance" | "learning" | "reports" | "announcements";
+type Page = "overview" | "students" | "teachers" | "courses" | "fees" | "attendance" | "learning" | "reports" | "announcements" | "settings";
 type PortalUser = { name: string; role: Role; rollNo?: string };
+type NotificationPreferences = { pushEnabled: boolean; feeReminders: boolean; announcementAlerts: boolean; dueDay: string; quietHours: boolean };
 
 const FEE_RULES = [
   { label: "Admission fee", urdu: "داخلہ فیس", value: "5,000 PKR", detail: "One-time on admission" },
@@ -80,6 +81,7 @@ const pageNames: Record<Page, { en: string; ur: string }> = {
   learning: { en: "Learning studio", ur: "لرننگ اسٹوڈیو" },
   reports: { en: "Reports", ur: "رپورٹس" },
   announcements: { en: "Announcements", ur: "اعلانات" },
+  settings: { en: "Notification settings", ur: "نوٹیفکیشن سیٹنگز" },
 };
 
 function tr(locale: Locale, en: string, ur: string) {
@@ -164,6 +166,12 @@ export default function Home() {
   const [invoicePaid, setInvoicePaid] = useState(false);
   const [assignmentSubmitted, setAssignmentSubmitted] = useState(false);
   const [quizDone, setQuizDone] = useState(false);
+  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>(() => {
+    if (typeof window === "undefined") return { pushEnabled: false, feeReminders: true, announcementAlerts: true, dueDay: "3 days before", quietHours: true };
+    const saved = window.localStorage.getItem("student-lms-notification-preferences");
+    try { return saved ? { pushEnabled: false, feeReminders: true, announcementAlerts: true, dueDay: "3 days before", quietHours: true, ...JSON.parse(saved) } : { pushEnabled: false, feeReminders: true, announcementAlerts: true, dueDay: "3 days before", quietHours: true }; } catch { return { pushEnabled: false, feeReminders: true, announcementAlerts: true, dueDay: "3 days before", quietHours: true }; }
+  });
+  useEffect(() => { window.localStorage.setItem("student-lms-notification-preferences", JSON.stringify(notificationPreferences)); }, [notificationPreferences]);
   const login = trpc.lms.login.useMutation({
     onSuccess: data => {
       setUser(data.user);
@@ -176,9 +184,9 @@ export default function Home() {
   });
 
   const currentMenu = useMemo(() => {
-    if (role === "admin") return ["overview", "students", "teachers", "courses", "fees", "attendance", "reports", "announcements"] as Page[];
-    if (role === "teacher") return ["overview", "students", "courses", "attendance", "learning", "reports", "announcements"] as Page[];
-    return ["overview", "courses", "learning", "attendance", "fees", "announcements"] as Page[];
+    if (role === "admin") return ["overview", "students", "teachers", "courses", "fees", "attendance", "reports", "announcements", "settings"] as Page[];
+    if (role === "teacher") return ["overview", "students", "courses", "attendance", "learning", "reports", "announcements", "settings"] as Page[];
+    return ["overview", "courses", "learning", "attendance", "fees", "announcements", "settings"] as Page[];
   }, [role]);
 
   useEffect(() => {
@@ -191,9 +199,9 @@ export default function Home() {
       student: { name: "Hania Raza", role: "student", rollNo: "SCI-2026-041" },
     };
     const allowedPreviewPages: Record<Role, Page[]> = {
-      admin: ["overview", "students", "teachers", "courses", "fees", "attendance", "reports", "announcements"],
-      teacher: ["overview", "students", "courses", "attendance", "learning", "reports", "announcements"],
-      student: ["overview", "courses", "learning", "attendance", "fees", "announcements"],
+      admin: ["overview", "students", "teachers", "courses", "fees", "attendance", "reports", "announcements", "settings"],
+      teacher: ["overview", "students", "courses", "attendance", "learning", "reports", "announcements", "settings"],
+      student: ["overview", "courses", "learning", "attendance", "fees", "announcements", "settings"],
     };
     const previewPage = new URLSearchParams(window.location.search).get("page") as Page | null;
     setRole(previewRole);
@@ -292,7 +300,7 @@ export default function Home() {
       <div className="lg:pl-[280px]">
         <header className="no-print sticky top-0 z-40 flex h-[73px] items-center justify-between border-b border-[#cfc5b5] bg-[#f4efe5]/90 px-5 backdrop-blur md:px-8">
           <div className="flex items-center gap-3"><button className="rounded-md border border-[#cfc5b5] p-2 lg:hidden" onClick={() => setNavOpen(true)}><Menu className="h-4 w-4" /></button><div><p className="eyebrow text-[#786f64]">{tr(locale, "Student LMS / workspace", "اسٹوڈنٹ ایل ایم ایس / ورک اسپیس")}</p><h1 className={`editorial-copy mt-1 text-2xl leading-none ${locale === "ur" ? "urdu" : ""}`}>{locale === "ur" ? pageNames[page].ur : pageNames[page].en}</h1></div></div>
-          <div className="flex items-center gap-2 md:gap-3"><button onClick={() => setLocale(locale === "en" ? "ur" : "en")} className="rounded-full border border-[#bfb5a5] px-3 py-1.5 text-xs font-bold">{locale === "en" ? "اردو" : "EN"}</button><button onClick={() => setPage("announcements")} className="relative rounded-full p-2.5 hover:bg-[#e8e0d2]"><Bell className="h-4 w-4" /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#ae5a38]" /></button><div className="hidden border-l border-[#cfc5b5] pl-3 text-right sm:block"><p className="text-xs font-bold">{user.name}</p><p className="text-[10px] text-[#796f64]">{roleAccess[user.role].label}</p></div><span className="grid h-9 w-9 place-items-center rounded-full bg-[#1c1b19] text-xs font-bold text-[#f7f2e9]">{user.name.split(" ").map(part => part[0]).slice(0, 2).join("")}</span></div>
+          <div className="flex items-center gap-2 md:gap-3"><button onClick={() => setLocale(locale === "en" ? "ur" : "en")} className="rounded-full border border-[#bfb5a5] px-3 py-1.5 text-xs font-bold">{locale === "en" ? "اردو" : "EN"}</button><button onClick={() => setPage("announcements")} aria-label="Open announcements" className="relative rounded-full p-2.5 hover:bg-[#e8e0d2]"><Bell className="h-4 w-4" /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#ae5a38]" /></button><button onClick={() => setPage("settings")} aria-label="Open notification settings" className="rounded-full p-2.5 hover:bg-[#e8e0d2]"><Settings2 className="h-4 w-4" /></button><div className="hidden border-l border-[#cfc5b5] pl-3 text-right sm:block"><p className="text-xs font-bold">{user.name}</p><p className="text-[10px] text-[#796f64]">{roleAccess[user.role].label}</p></div><span className="grid h-9 w-9 place-items-center rounded-full bg-[#1c1b19] text-xs font-bold text-[#f7f2e9]">{user.name.split(" ").map(part => part[0]).slice(0, 2).join("")}</span></div>
         </header>
         <main className="mx-auto max-w-[1560px] px-4 pb-28 pt-5 sm:px-5 sm:py-7 md:px-8 md:py-9">{renderPage()}</main>
         <nav aria-label="Quick mobile navigation" className="fixed inset-x-3 bottom-3 z-[60] flex items-center justify-around rounded-2xl border border-[#c7bcaa] bg-[#fcfaf5]/95 p-1.5 shadow-[0_14px_32px_rgba(47,40,29,.18)] backdrop-blur lg:hidden">{(user.role === "admin" ? [{ page: "overview" as Page, label: "Home" }, { page: "students" as Page, label: "Learners" }, { page: "attendance" as Page, label: "Record" }, { page: "reports" as Page, label: "Reports" }] : user.role === "teacher" ? [{ page: "overview" as Page, label: "Home" }, { page: "attendance" as Page, label: "Register" }, { page: "learning" as Page, label: "Content" }, { page: "announcements" as Page, label: "Alerts" }] : [{ page: "overview" as Page, label: "Home" }, { page: "learning" as Page, label: "Study" }, { page: "attendance" as Page, label: "Record" }, { page: "fees" as Page, label: "Fees" }]).map(item => <button key={item.page} onClick={() => setPage(item.page)} className={`flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[9px] font-bold tracking-[.08em] uppercase ${page === item.page ? "bg-[#1c1b19] text-[#faf5eb]" : "text-[#6e665b]"}`}><span>{iconFor(item.page)}</span><span>{item.label}</span></button>)}</nav>
@@ -310,6 +318,7 @@ export default function Home() {
       case "learning": return <LearningPage />;
       case "reports": return <ReportsPage />;
       case "announcements": return <AnnouncementsPage />;
+      case "settings": return <SettingsPage />;
       default: return <OverviewPage />;
     }
   }
@@ -365,6 +374,19 @@ export default function Home() {
     const publish = () => { if (!newNotice.trim()) return; setAnnouncements([{ title: newNotice, audience: "All portal users", date: "Just now", by: user?.name ?? "Academic Office" }, ...announcements]); setNewNotice(""); toast.success("Announcement published to the in-app noticeboard"); };
     return <div className="space-y-6"><PageIntro eyebrow="Noticeboard" title="Communication, composed." text="Keep students, teachers and administrators aligned with time-sensitive academic and financial updates." /><div className="grid gap-5 xl:grid-cols-[.8fr_1.2fr]"><section className="rounded-[.9rem] bg-[#1c1b19] p-6 text-[#f8f2e8]"><p className="eyebrow text-[#d9c9b3]">New notification</p><h3 className="editorial-copy mt-3 text-4xl">Say it clearly.</h3><textarea value={newNotice} onChange={event => setNewNotice(event.target.value)} className="mt-6 h-32 w-full resize-none rounded-lg border border-[#f8f2e8]/20 bg-white/10 p-3 text-sm outline-none placeholder:text-[#d6ccc0]" placeholder="Write an announcement for the institute..." /><button onClick={publish} className="mt-4 rounded-md bg-[#f8f2e8] px-4 py-3 text-xs font-bold text-[#1c1b19]"><Send className="mr-2 inline h-4 w-4" />Publish announcement</button><p className="mt-4 text-xs text-[#d7d0c5]">Audience routing can be configured for administrators, teachers and students in the production notification service.</p></section><section className="metric-card rounded-[.9rem] p-6"><SectionTitle eyebrow="Recent messages" title="The latest word." /><div className="mt-5 space-y-0">{announcements.map((notice, index) => <article className="table-row py-5" key={`${notice.title}-${index}`}><div className="flex items-start justify-between gap-4"><div><span className="eyebrow text-[#906143]">{notice.audience}</span><h3 className="mt-2 text-base font-bold">{notice.title}</h3><p className="mt-2 text-xs text-[#746c61]">{notice.by} · {notice.date}</p></div><button onClick={() => toast.message("Announcement actions opened") } className="rounded p-2 hover:bg-[#e8e0d2]"><MoreHorizontal className="h-4 w-4" /></button></div></article>)}</div></section></div></div>;
   }
+
+  function SettingsPage() {
+    const updatePreference = <Key extends keyof NotificationPreferences>(key: Key, value: NotificationPreferences[Key]) => setNotificationPreferences(current => ({ ...current, [key]: value }));
+    const enablePush = async () => {
+      if (notificationPreferences.pushEnabled) { updatePreference("pushEnabled", false); toast.message("Mobile push alerts paused"); return; }
+      if (!("Notification" in window)) { toast.error("This browser does not support push notifications."); return; }
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") { updatePreference("pushEnabled", true); toast.success("Mobile push alerts enabled"); }
+      else toast.message("Browser permission is needed before push alerts can be enabled.");
+    };
+    const Toggle = ({ checked, onClick, label, description, accent = "ink" }: { checked: boolean; onClick: () => void; label: string; description: string; accent?: "ink" | "clay" }) => <div className="flex items-center gap-4 py-4"><div className="min-w-0 flex-1"><p className="text-sm font-bold">{label}</p><p className="mt-1 text-xs leading-relaxed text-[#756c61]">{description}</p></div><button type="button" role="switch" aria-checked={checked} onClick={onClick} className={`relative h-10 w-16 shrink-0 overflow-hidden rounded-full transition-colors ${checked ? accent === "clay" ? "bg-[#754936]" : "bg-[#1c1b19]" : "bg-[#d8d0c3]"}`}><span className={`absolute left-1 top-1 h-8 w-8 rounded-full bg-[#fffaf2] shadow-sm transition-transform ${checked ? "translate-x-6" : "translate-x-0"}`} /></button></div>;
+    return <div className="space-y-6"><PageIntro eyebrow="Personal settings" title="Alerts, on your terms." text="Choose which fee and announcement updates can reach this device. Your selections are saved on this device and respected across the portal." /><div className="grid gap-5 xl:grid-cols-[1fr_.78fr]"><section className="metric-card rounded-[.9rem] p-5 sm:p-6"><div className="flex items-start gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#1c1b19] text-[#faf5eb]"><Bell className="h-5 w-5" /></span><div><p className="eyebrow text-[#766d61]">Device alerts</p><h2 className="editorial-copy mt-2 text-4xl leading-none">Stay in the loop.</h2></div></div><div className="mt-6 border-y border-[#1c1b19]/10"><Toggle checked={notificationPreferences.pushEnabled} onClick={enablePush} label="Mobile push notifications" description="Allow this browser to show timely LMS alerts on this device." /><div className="border-t border-[#1c1b19]/10"><Toggle checked={notificationPreferences.quietHours} onClick={() => updatePreference("quietHours", !notificationPreferences.quietHours)} label="Quiet hours" description="Hold non-urgent announcements between 10 PM and 7 AM." /></div></div><p className="mt-4 rounded-lg bg-[#e9e1d2] p-3 text-xs leading-relaxed text-[#695f54]">Push alerts require browser permission. Urgent fee notices can still appear inside the LMS noticeboard.</p></section><section className="rounded-[.9rem] bg-[#ead6c2] p-5 sm:p-6"><p className="eyebrow text-[#805f4c]">Delivery summary</p><h2 className="editorial-copy mt-2 text-4xl leading-none text-[#543a2b]">Your alert plan.</h2><div className="mt-7 space-y-3">{[{ label: "Device alerts", value: notificationPreferences.pushEnabled ? "Enabled" : "Paused" }, { label: "Fee reminders", value: notificationPreferences.feeReminders ? notificationPreferences.dueDay : "Paused" }, { label: "Announcements", value: notificationPreferences.announcementAlerts ? "Enabled" : "Paused" }].map(item => <div key={item.label} className="flex items-center justify-between border-t border-[#7f5d4b]/15 pt-3 text-sm"><span>{item.label}</span><strong>{item.value}</strong></div>)}</div><button onClick={() => toast.success("Notification preferences saved", { description: "Your device choices will be used for future LMS alerts." })} className="mt-7 min-h-12 w-full rounded-lg bg-[#543a2b] px-4 py-3 text-sm font-bold text-white">Save notification preferences</button></section></div><section className="metric-card rounded-[.9rem] p-5 sm:p-6"><SectionTitle eyebrow="What reaches you" title="Choose the useful alerts." /><div className="mt-5 divide-y divide-[#1c1b19]/10"><Toggle checked={notificationPreferences.feeReminders} onClick={() => updatePreference("feeReminders", !notificationPreferences.feeReminders)} label="Fee reminders" description="Receive upcoming-due, overdue, and verified payment notifications." accent="clay" /><Toggle checked={notificationPreferences.announcementAlerts} onClick={() => updatePreference("announcementAlerts", !notificationPreferences.announcementAlerts)} label="Institute announcements" description="Receive announcements relevant to your courses, role, and institute activity." /></div><div className="mt-2 grid gap-3 rounded-xl bg-[#faf7f0] p-4 sm:grid-cols-[1fr_auto] sm:items-center"><div><p className="text-sm font-bold">Fee reminder timing</p><p className="mt-1 text-xs text-[#756c61]">Choose when the first due-date prompt arrives.</p></div><select aria-label="Fee reminder timing" value={notificationPreferences.dueDay} onChange={event => updatePreference("dueDay", event.target.value)} className="min-h-11 rounded-lg border border-[#cfc5b5] bg-white px-3 text-sm font-semibold outline-none"><option>7 days before</option><option>3 days before</option><option>On due date</option></select></div></section></div>;
+  }
 }
 
 function FeatureMark({ number, label }: { number: string; label: string }) {
@@ -396,5 +418,6 @@ function iconFor(page: Page) {
   if (page === "attendance") return <CalendarCheck2 className={cls} />;
   if (page === "learning") return <Sparkles className={cls} />;
   if (page === "reports") return <BarChart3 className={cls} />;
+  if (page === "settings") return <Settings2 className={cls} />;
   return <Bell className={cls} />;
 }
