@@ -11,5 +11,18 @@
 - [x] Build student performance, fee collection, and attendance reports with export actions.
 - [x] Add integration-ready Cloudinary upload and JazzCash, Easypaisa, and bank-transfer payment status configuration.
 - [x] Add secure production integration documentation, local setup instructions, and deployment guidance.
-- [ ] Write and run unit tests, verify responsive UI, and create a final project checkpoint.
-- [ ] Create a private GitHub repository and push the completed source code.
+- [x] Write and run unit tests and verify responsive UI.
+- [x] Create a private GitHub repository and push the completed source code.
+- [x] Create a final project checkpoint.
+- [x] Add a development-only role preview for visual quality assurance without weakening production login.
+- [x] Add a development-only role preview for visual quality assurance without weakening production login.
+- [x] Verify key administrator, teacher, and student portal layouts at desktop and mobile breakpoints.
+- [x] Add development-only page selection for authenticated visual QA.
+- [x] Add development-only page selection for authenticated visual QA.
+- [x] Verify representative fees, attendance, learning, reports, and announcements portal views across roles and breakpoints.
+- [x] Refine responsive data tables to preserve readable columns on mobile screens.
+- [x] Compact dense student, fee, and attendance tables on mobile so essential fields remain readable without overlap.
+- [x] Compact dense student, fee, and attendance tables on mobile so essential fields remain readable without overlap.
+- [x] Align essential mobile table cells into stable explicit grid positions.
+- [x] Align essential mobile table cells into stable explicit grid positions.
+- [x] Stabilize compact mobile register column widths for consistent header and control alignment.

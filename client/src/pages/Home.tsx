@@ -30,7 +30,7 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 type Locale = "en" | "ur";
@@ -145,6 +145,26 @@ export default function Home() {
     if (role === "teacher") return ["overview", "students", "courses", "attendance", "learning", "reports", "announcements"] as Page[];
     return ["overview", "courses", "learning", "attendance", "fees", "announcements"] as Page[];
   }, [role]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const previewRole = new URLSearchParams(window.location.search).get("preview");
+    if (previewRole !== "admin" && previewRole !== "teacher" && previewRole !== "student") return;
+    const previewUsers: Record<Role, PortalUser> = {
+      admin: { name: "Ayesha Khalid", role: "admin" },
+      teacher: { name: "Dr. Sara Ahmed", role: "teacher" },
+      student: { name: "Hania Raza", role: "student", rollNo: "SCI-2026-041" },
+    };
+    const allowedPreviewPages: Record<Role, Page[]> = {
+      admin: ["overview", "students", "teachers", "courses", "fees", "attendance", "reports", "announcements"],
+      teacher: ["overview", "students", "courses", "attendance", "learning", "reports", "announcements"],
+      student: ["overview", "courses", "learning", "attendance", "fees", "announcements"],
+    };
+    const previewPage = new URLSearchParams(window.location.search).get("page") as Page | null;
+    setRole(previewRole);
+    setUser(previewUsers[previewRole]);
+    if (previewPage && allowedPreviewPages[previewRole].includes(previewPage)) setPage(previewPage);
+  }, []);
 
   const setDemoRole = (nextRole: Role) => {
     setRole(nextRole);
