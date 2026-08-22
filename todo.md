@@ -40,3 +40,6 @@
 - [x] Audit and refine the whole-site visual hierarchy, information density, and role-specific interaction patterns.
 - [x] Improve navigation, action affordances, feedback states, accessibility, and responsive product polish across portals.
 - [x] Validate the optimized desktop and mobile experiences for administrator, teacher, and student workflows.
+- [x] Define and integrate a custom institute identity system across LMS navigation and key dashboards.
+- [x] Add respectful student avatars to learner-facing records and dashboard surfaces.
+- [x] Verify personalized institute branding and avatar presentation across desktop and mobile views.
