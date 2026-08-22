@@ -49,3 +49,10 @@
 - [x] Show a saved profile picture on the student overview dashboard as well as the header and settings panel.
 - [x] Complete end-to-end verification of valid, invalid, and persistent student profile-photo updates across dashboard surfaces.
 - [x] Ensure client-side profile-photo validation and persistence helpers run in the LMS unit-test suite.
+- [x] Add student controls for teacher and classmate profile-photo visibility.
+- [x] Apply profile-photo privacy choices to relevant teacher and student-facing views.
+- [x] Verify profile-photo privacy behavior across desktop and mobile portal previews.
+- [x] Apply classmate profile-photo visibility to a real student-facing shared course roster.
+- [x] Verify teacher and classmate photo-privacy controls alter visible avatars and persist across portal views.
+- [x] Exercise and verify both hidden and visible profile-photo states across student, teacher, and classmate views.
+- [x] Add automated coverage for photo-privacy toggle state changes and persistence-keyed audience behavior.

@@ -1,4 +1,4 @@
-import { date, index, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { boolean, date, index, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -16,6 +16,8 @@ export const users = mysqlTable("users", {
   name: text("name"),
   email: varchar("email", { length: 320 }),
   profileImageUrl: text("profileImageUrl"),
+  profilePhotoVisibleToTeachers: boolean("profilePhotoVisibleToTeachers").default(true).notNull(),
+  profilePhotoVisibleToClassmates: boolean("profilePhotoVisibleToClassmates").default(true).notNull(),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

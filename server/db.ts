@@ -96,6 +96,16 @@ export async function updateUserProfileImage(userId: number, profileImageUrl: st
   return { profileImageUrl };
 }
 
+export async function updateUserProfilePhotoPrivacy(userId: number, preferences: { visibleToTeachers: boolean; visibleToClassmates: boolean }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is unavailable");
+  await db.update(users).set({
+    profilePhotoVisibleToTeachers: preferences.visibleToTeachers,
+    profilePhotoVisibleToClassmates: preferences.visibleToClassmates,
+  }).where(eq(users.id, userId));
+  return preferences;
+}
+
 export type MonthlyInstitutionTrend = {
   month: string;
   fees: number;

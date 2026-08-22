@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { profilePhotoStorageKey, validateProfilePhotoFile } from "@/lib/profilePhoto";
+import { applyProfilePhotoPrivacy, canViewProfilePhoto } from "@/lib/profilePhotoPrivacy";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -39,6 +40,7 @@ type Role = "admin" | "teacher" | "student";
 type Page = "overview" | "students" | "teachers" | "courses" | "fees" | "attendance" | "learning" | "reports" | "announcements" | "settings";
 type PortalUser = { name: string; role: Role; rollNo?: string };
 type NotificationPreferences = { pushEnabled: boolean; feeReminders: boolean; announcementAlerts: boolean; dueDay: string; quietHours: boolean };
+type ProfilePhotoPrivacy = { visibleToTeachers: boolean; visibleToClassmates: boolean };
 
 const FEE_RULES = [
   { label: "Admission fee", urdu: "داخلہ فیس", value: "5,000 PKR", detail: "One-time on admission" },
@@ -50,10 +52,10 @@ const FEE_RULES = [
 const instituteSealUrl = "/manus-storage/student-lms-institute-seal_8b6afea3.png";
 
 const studentsSeed = [
-  { name: "Hania Raza", roll: "SCI-2026-041", course: "FSc Pre-Medical", attendance: "94%", fee: "Due", avatar: "/manus-storage/student-avatar-hania-raza_fdab049a.png" },
-  { name: "Muhammad Saad", roll: "SCI-2026-052", course: "FSc Pre-Engineering", attendance: "91%", fee: "Paid", avatar: "/manus-storage/student-avatar-muhammad-saad_64728863.png" },
-  { name: "Eman Fatima", roll: "ICS-2026-018", course: "ICS", attendance: "88%", fee: "Paid", avatar: "/manus-storage/student-avatar-eman-fatima_0247f253.png" },
-  { name: "Zain Abbas", roll: "SCI-2026-063", course: "FSc Pre-Medical", attendance: "82%", fee: "Overdue", avatar: "/manus-storage/student-avatar-zain-abbas_cd5e9a8b.png" },
+  { name: "Hania Raza", roll: "SCI-2026-041", course: "FSc Pre-Medical", attendance: "94%", fee: "Due", avatar: "/manus-storage/student-avatar-hania-raza_fdab049a.png", visibleToTeachers: true, visibleToClassmates: true },
+  { name: "Muhammad Saad", roll: "SCI-2026-052", course: "FSc Pre-Engineering", attendance: "91%", fee: "Paid", avatar: "/manus-storage/student-avatar-muhammad-saad_64728863.png", visibleToTeachers: true, visibleToClassmates: true },
+  { name: "Eman Fatima", roll: "ICS-2026-018", course: "ICS", attendance: "88%", fee: "Paid", avatar: "/manus-storage/student-avatar-eman-fatima_0247f253.png", visibleToTeachers: true, visibleToClassmates: true },
+  { name: "Zain Abbas", roll: "SCI-2026-063", course: "FSc Pre-Medical", attendance: "82%", fee: "Overdue", avatar: "/manus-storage/student-avatar-zain-abbas_cd5e9a8b.png", visibleToTeachers: true, visibleToClassmates: true },
 ];
 
 const courseSeed = [
@@ -176,6 +178,7 @@ export default function Home() {
   const [assignmentSubmitted, setAssignmentSubmitted] = useState(false);
   const [quizDone, setQuizDone] = useState(false);
   const [profileImagePreview, setProfileImagePreview] = useState("");
+  const [profilePhotoPrivacy, setProfilePhotoPrivacy] = useState<ProfilePhotoPrivacy>({ visibleToTeachers: true, visibleToClassmates: true });
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>(() => {
     if (typeof window === "undefined") return { pushEnabled: false, feeReminders: true, announcementAlerts: true, dueDay: "3 days before", quietHours: true };
     const saved = window.localStorage.getItem("student-lms-notification-preferences");
@@ -199,6 +202,10 @@ export default function Home() {
     },
     onError: () => toast.success("Profile photo saved on this device", { description: "The demo keeps your picture in this browser until a production account is connected." }),
   });
+  const profilePhotoPrivacyUpdate = trpc.profile.updatePhotoPrivacy.useMutation({
+    onSuccess: () => toast.success("Photo visibility saved securely"),
+    onError: () => toast.success("Photo visibility saved on this device", { description: "The demo keeps your privacy choice in this browser until a production account is connected." }),
+  });
 
   const currentMenu = useMemo(() => {
     if (role === "admin") return ["overview", "students", "teachers", "courses", "fees", "attendance", "reports", "announcements", "settings"] as Page[];
@@ -221,9 +228,26 @@ export default function Home() {
       student: ["overview", "courses", "learning", "attendance", "fees", "announcements", "settings"],
     };
     const previewPage = new URLSearchParams(window.location.search).get("page") as Page | null;
+    const previewPrivacy = new URLSearchParams(window.location.search).get("privacy");
     setRole(previewRole);
     setUser(previewUsers[previewRole]);
     if (previewPage && allowedPreviewPages[previewRole].includes(previewPage)) setPage(previewPage);
+    if (previewPrivacy === "hidden" && previewRole === "student") {
+      const hidden = { visibleToTeachers: false, visibleToClassmates: false };
+      setProfilePhotoPrivacy(hidden);
+      setStudents(current => current.map(student => student.name === "Hania Raza" ? { ...student, ...hidden } : student));
+    }
+  }, []);
+
+  useEffect(() => {
+    setStudents(current => current.map(student => {
+      const saved = window.localStorage.getItem(`student-lms-profile-photo-privacy-${student.roll}`);
+      if (!saved) return student;
+      try {
+        const privacy = JSON.parse(saved) as Partial<ProfilePhotoPrivacy>;
+        return { ...student, visibleToTeachers: privacy.visibleToTeachers ?? true, visibleToClassmates: privacy.visibleToClassmates ?? true };
+      } catch { return student; }
+    }));
   }, []);
 
   useEffect(() => {
@@ -235,6 +259,35 @@ export default function Home() {
       setStudents(current => current.map(student => student.name === user.name ? { ...student, avatar: saved } : student));
     }
   }, [user]);
+
+  useEffect(() => {
+    if (user?.role !== "student") return;
+    const saved = window.localStorage.getItem(`student-lms-profile-photo-privacy-${user.rollNo ?? user.name}`);
+    if (saved) {
+      try { setProfilePhotoPrivacy({ visibleToTeachers: true, visibleToClassmates: true, ...JSON.parse(saved) }); } catch { /* use secure defaults */ }
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user?.role !== "student") return;
+    window.localStorage.setItem(`student-lms-profile-photo-privacy-${user.rollNo ?? user.name}`, JSON.stringify(profilePhotoPrivacy));
+  }, [profilePhotoPrivacy, user]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || user?.role !== "student") return;
+    if (new URLSearchParams(window.location.search).get("privacy") !== "hidden") return;
+    const hidden = { visibleToTeachers: false, visibleToClassmates: false };
+    setProfilePhotoPrivacy(hidden);
+    setStudents(current => current.map(student => student.name === user.name ? { ...student, ...hidden } : student));
+  }, [user]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const previewPrivacy = new URLSearchParams(window.location.search).get("privacy");
+    if (previewPrivacy !== "hania-hidden" && previewPrivacy !== "classmate-hidden") return;
+    const studentName = previewPrivacy === "hania-hidden" ? "Hania Raza" : "Muhammad Saad";
+    setStudents(current => current.map(student => student.name === studentName ? { ...student, visibleToTeachers: false, visibleToClassmates: false } : student));
+  }, []);
 
   const setDemoRole = (nextRole: Role) => {
     setRole(nextRole);
@@ -248,6 +301,22 @@ export default function Home() {
   };
 
   const activeStudentAvatar = user?.role === "student" ? profileImagePreview || students.find(student => student.name === user.name)?.avatar : undefined;
+
+  const updateProfilePhotoPrivacy = (next: ProfilePhotoPrivacy) => {
+    setProfilePhotoPrivacy(next);
+    setStudents(current => current.map(student => student.name === user?.name ? applyProfilePhotoPrivacy(student, next) : student));
+    const demoSession = Boolean(window.localStorage.getItem("student-lms-demo-token"));
+    if (demoSession) toast.success("Photo privacy updated", { description: "Your visibility choice is now applied in this browser." });
+    else profilePhotoPrivacyUpdate.mutate(next);
+  };
+
+  const avatarForAudience = (student: typeof studentsSeed[number], audience: "admin" | "teacher" | "classmate" | "self") => {
+    if (!canViewProfilePhoto(audience, student)) return "";
+    if (student.name !== user?.name || user?.role !== "student") return student.avatar;
+    if (audience === "teacher" && !profilePhotoPrivacy.visibleToTeachers) return "";
+    if (audience === "classmate" && !profilePhotoPrivacy.visibleToClassmates) return "";
+    return activeStudentAvatar || student.avatar;
+  };
 
   const handleProfilePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -373,7 +442,7 @@ export default function Home() {
       case "learning": return <LearningPage />;
       case "reports": return <ReportsPage />;
       case "announcements": return <AnnouncementsPage />;
-      case "settings": return <SettingsPageV2 />;
+      case "settings": return <SettingsPageV3 />;
       default: return <OverviewPage />;
     }
   }
@@ -393,7 +462,7 @@ export default function Home() {
   }
 
   function StudentsPage() {
-    const addStudent = () => { if (!newStudent.trim()) return; setStudents([{ name: newStudent, roll: `NEW-${String(students.length + 1).padStart(3, "0")}`, course: "Unassigned", attendance: "—", fee: "Due", avatar: "" }, ...students]); setNewStudent(""); toast.success("Student record added to the working register"); };
+    const addStudent = () => { if (!newStudent.trim()) return; setStudents([{ name: newStudent, roll: `NEW-${String(students.length + 1).padStart(3, "0")}`, course: "Unassigned", attendance: "—", fee: "Due", avatar: "", visibleToTeachers: true, visibleToClassmates: true }, ...students]); setNewStudent(""); toast.success("Student record added to the working register"); };
     return <div className="space-y-6"><PageIntro eyebrow="Learner register" title="Every learner, in focus." text="Manage admissions, enrolments, subjects and the financial standing of the cohort." /><div className="grid gap-4 lg:grid-cols-[1fr_auto]"><div className="flex items-center gap-2 rounded-xl border bg-[#fcfaf5]/70 px-3"><Search className="h-4 w-4 text-[#7a7165]" /><input className="w-full bg-transparent py-3 text-sm outline-none" placeholder="Search roll number, student, course..." /></div><div className="flex gap-2"><input value={newStudent} onChange={event => setNewStudent(event.target.value)} className="min-w-0 rounded-xl border bg-[#fcfaf5] px-3 py-3 text-sm outline-none" placeholder="New student name" /><button onClick={addStudent} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#1c1b19] px-4 py-3 text-xs font-bold text-white"><Plus className="h-4 w-4" />Add student</button></div></div><div className="metric-card overflow-hidden rounded-[.9rem]"><div className="ledger-students bg-[#e8e0d2] px-5 py-3 text-[10px] font-bold tracking-[.14em] text-[#675f54] uppercase"><span>Student</span><span>Course</span><span>Attendance</span><span>Fees</span><span /></div>{students.map(student => <div className="ledger-students ledger-row table-row gap-3 px-5 py-4 text-sm" key={student.roll}><span className="flex items-center gap-3"><StudentAvatar name={student.name} src={student.avatar} /><span><strong className="block">{student.name}</strong><small className="ledger-detail block">{student.roll}</small></span></span><span className="ledger-detail">{student.course}</span><span className="font-bold tabular-nums">{student.attendance}</span><span><StatusPill label={student.fee} /></span><button aria-label={`Edit ${student.name}`} onClick={() => toast.success(`Editing ${student.name}`, { description: "Record opened in the local management workspace." })} className="justify-self-end rounded-lg p-2 hover:bg-[#e8e0d2]"><MoreHorizontal className="h-4 w-4" /></button></div>)}</div></div>;
   }
 
@@ -402,7 +471,8 @@ export default function Home() {
   }
 
   function CoursesPage() {
-    return <div className="space-y-6"><PageIntro eyebrow="Academic catalogue" title="Courses with direction." text={user?.role === "student" ? "Your current subjects, study materials and completed learning are gathered in one considered view." : "Structure subjects, allocate teachers and observe curriculum progress across every cohort."} /><div className="grid gap-4 lg:grid-cols-3">{courseSeed.map((course, index) => <article className="metric-card lift rounded-[.9rem] p-6" key={course.code}><div className="flex items-center justify-between"><span className="eyebrow text-[#72695e]">{course.code}</span><button onClick={() => setPage("learning")}><ArrowUpRight className="h-4 w-4" /></button></div><h3 className="editorial-copy mt-10 text-3xl leading-none">{course.title}</h3><p className="mt-3 text-sm text-[#6f665b]">{course.teacher} · {course.students} students</p><div className="mt-8"><div className="flex justify-between text-xs font-bold"><span>Course completion</span><span>{course.progress}%</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#e7dfd1]"><div className="h-full bg-[#1c1b19]" style={{ width: `${course.progress}%` }} /></div></div><p className="mt-7 border-t border-[#1c1b19]/15 pt-4 text-xs text-[#756c60]">{index === 0 ? "New practical worksheet ready" : "Next lesson scheduled this week"}</p></article>)}</div><button onClick={() => toast.success("Course and subject editor opened") } className="rounded-lg bg-[#1c1b19] px-4 py-3 text-xs font-bold text-[#f8f2e8]"><Plus className="mr-2 inline h-4 w-4" />Add course or subject</button></div>;
+    const isStudent = user?.role === "student";
+    return <div className="space-y-6"><PageIntro eyebrow="Academic catalogue" title="Courses with direction." text={isStudent ? "Your current subjects, study materials and completed learning are gathered in one considered view." : "Structure subjects, allocate teachers and observe curriculum progress across every cohort."} /><div className="grid gap-4 lg:grid-cols-3">{courseSeed.map((course, index) => <article className="metric-card lift rounded-[.9rem] p-6" key={course.code}><div className="flex items-center justify-between"><span className="eyebrow text-[#72695e]">{course.code}</span><button aria-label={`Open ${course.title}`} onClick={() => setPage("learning")}><ArrowUpRight className="h-4 w-4" /></button></div><h3 className="editorial-copy mt-10 text-3xl leading-none">{course.title}</h3><p className="mt-3 text-sm text-[#6f665b]">{course.teacher} · {course.students} students</p><div className="mt-8"><div className="flex justify-between text-xs font-bold"><span>Course completion</span><span>{course.progress}%</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#e7dfd1]"><div className="h-full bg-[#1c1b19]" style={{ width: `${course.progress}%` }} /></div></div><p className="mt-7 border-t border-[#1c1b19]/15 pt-4 text-xs text-[#756c60]">{index === 0 ? "New practical worksheet ready" : "Next lesson scheduled this week"}</p></article>)}</div>{isStudent && <section className="metric-card rounded-[.9rem] p-5 sm:p-6"><SectionTitle eyebrow="BIO-402 · shared learning" title="Your course circle." /><p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#756c61]">Profile pictures in this shared roster respect each learner’s personal privacy choice. When a classmate chooses privacy, only their initials appear.</p><div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{students.map(student => { const audience = student.name === user?.name ? "self" : "classmate"; const photo = avatarForAudience(student, audience); return <div key={student.roll} className="flex items-center gap-3 rounded-xl border border-[#ded6c9] bg-[#faf7f0] p-3"><StudentAvatar name={student.name} src={photo} /><div className="min-w-0"><p className="truncate text-sm font-bold">{student.name}{student.name === user?.name && <span className="ml-1 text-xs font-medium text-[#7a7065]">(You)</span>}</p><p className="mt-0.5 text-[11px] text-[#756c61]">{photo ? "Shared profile photo" : "Initials only"}</p></div></div>; })}</div></section>}{!isStudent && <button onClick={() => toast.success("Course and subject editor opened") } className="rounded-lg bg-[#1c1b19] px-4 py-3 text-xs font-bold text-[#f8f2e8]"><Plus className="mr-2 inline h-4 w-4" />Add course or subject</button>}</div>;
   }
 
   function FeesPage() {
@@ -413,7 +483,7 @@ export default function Home() {
   function AttendancePage() {
     const teacher = user?.role === "teacher" || user?.role === "admin";
     if (!teacher) return <div className="space-y-6"><PageIntro eyebrow="My record" title="Attendance, in balance." text="Your verified class attendance is kept visible so there are no surprises at the end of term." /><div className="grid gap-5 md:grid-cols-3"><Metric label="Verified attendance" value="94%" trend="Excellent" /><Metric label="Classes attended" value="47" trend="of 50" tone="olive" /><Metric label="Required threshold" value="75%" trend="Maintained" tone="clay" /></div><section className="metric-card rounded-[.9rem] p-6"><SectionTitle eyebrow="Recent sessions" title="A dependable record." /><div className="mt-5 space-y-0">{["Biology practical — 21 Aug", "Chemistry — 20 Aug", "Physics — 19 Aug", "Biology — 18 Aug"].map((item, index) => <div key={item} className="table-row flex items-center justify-between py-4"><span className="text-sm font-semibold">{item}</span><StatusPill label={index === 2 ? "Present" : "Present"} /></div>)}</div></section></div>;
-    return <div className="space-y-6"><PageIntro eyebrow="Daily register" title="Attendance with intent." text="Mark the room, confirm the record and keep the institute’s attendance evidence consistent." /><section className="metric-card rounded-[.9rem] p-5 sm:p-6"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="eyebrow">BIO-402 · HSSC II</p><h3 className="editorial-copy mt-2 text-4xl">Morning biology</h3></div><div className="text-left sm:text-right"><p className="text-sm font-bold">Saturday, 22 August</p><p className="text-xs text-[#736a5e]">09:00–10:30 · Room 04</p></div></div><div className="mt-7 overflow-hidden rounded-xl border border-[#d6cec0]"><div className="attendance-ledger bg-[#e8e0d2] px-4 py-3 text-[10px] font-bold tracking-[.14em] uppercase"><span>Learner</span><span>Roll no.</span><span className="text-right">Present</span></div>{students.map(student => <label className="attendance-ledger ledger-row table-row min-h-16 gap-3 px-4 py-3 text-sm" key={student.roll}><span className="flex items-center gap-3"><StudentAvatar name={student.name} src={student.avatar} /><span><strong className="block font-semibold">{student.name}</strong><small className="mt-0.5 block text-[11px] text-[#756c61] sm:hidden">{student.roll}</small></span></span><span className="text-xs text-[#756c61]">{student.roll}</span><span className="justify-self-end"><input aria-label={`Mark ${student.name} present`} type="checkbox" checked={attendance[student.name]} onChange={() => setAttendance({ ...attendance, [student.name]: !attendance[student.name] })} className="h-6 w-6 rounded-md accent-[#1c1b19]" /></span></label>)}</div><button onClick={() => toast.success("Attendance is saved", { description: `${Object.values(attendance).filter(Boolean).length} present, ${Object.values(attendance).filter(Boolean).length ? students.length - Object.values(attendance).filter(Boolean).length : 0} absent.` })} className="mt-5 min-h-12 w-full rounded-lg bg-[#1c1b19] px-4 py-3 text-sm font-bold text-white sm:w-auto"><Check className="mr-2 inline h-4 w-4" />Confirm attendance</button></section></div>;
+    return <div className="space-y-6"><PageIntro eyebrow="Daily register" title="Attendance with intent." text="Mark the room, confirm the record and keep the institute’s attendance evidence consistent." /><section className="metric-card rounded-[.9rem] p-5 sm:p-6"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="eyebrow">BIO-402 · HSSC II</p><h3 className="editorial-copy mt-2 text-4xl">Morning biology</h3></div><div className="text-left sm:text-right"><p className="text-sm font-bold">Saturday, 22 August</p><p className="text-xs text-[#736a5e]">09:00–10:30 · Room 04</p></div></div><div className="mt-7 overflow-hidden rounded-xl border border-[#d6cec0]"><div className="attendance-ledger bg-[#e8e0d2] px-4 py-3 text-[10px] font-bold tracking-[.14em] uppercase"><span>Learner</span><span>Roll no.</span><span className="text-right">Present</span></div>{students.map(student => <label className="attendance-ledger ledger-row table-row min-h-16 gap-3 px-4 py-3 text-sm" key={student.roll}><span className="flex items-center gap-3"><StudentAvatar name={student.name} src={avatarForAudience(student, "teacher")} /><span><strong className="block font-semibold">{student.name}</strong><small className="mt-0.5 block text-[11px] text-[#756c61] sm:hidden">{student.roll}</small></span></span><span className="text-xs text-[#756c61]">{student.roll}</span><span className="justify-self-end"><input aria-label={`Mark ${student.name} present`} type="checkbox" checked={attendance[student.name]} onChange={() => setAttendance({ ...attendance, [student.name]: !attendance[student.name] })} className="h-6 w-6 rounded-md accent-[#1c1b19]" /></span></label>)}</div><button onClick={() => toast.success("Attendance is saved", { description: `${Object.values(attendance).filter(Boolean).length} present, ${Object.values(attendance).filter(Boolean).length ? students.length - Object.values(attendance).filter(Boolean).length : 0} absent.` })} className="mt-5 min-h-12 w-full rounded-lg bg-[#1c1b19] px-4 py-3 text-sm font-bold text-white sm:w-auto"><Check className="mr-2 inline h-4 w-4" />Confirm attendance</button></section></div>;
   }
 
   function LearningPage() {
@@ -428,6 +498,20 @@ export default function Home() {
   function AnnouncementsPage() {
     const publish = () => { if (!newNotice.trim()) return; setAnnouncements([{ title: newNotice, audience: "All portal users", date: "Just now", by: user?.name ?? "Academic Office" }, ...announcements]); setNewNotice(""); toast.success("Announcement published to the in-app noticeboard"); };
     return <div className="space-y-6"><PageIntro eyebrow="Noticeboard" title="Communication, composed." text="Keep students, teachers and administrators aligned with time-sensitive academic and financial updates." /><div className="grid gap-5 xl:grid-cols-[.8fr_1.2fr]"><section className="rounded-[.9rem] bg-[#1c1b19] p-6 text-[#f8f2e8]"><p className="eyebrow text-[#d9c9b3]">New notification</p><h3 className="editorial-copy mt-3 text-4xl">Say it clearly.</h3><textarea value={newNotice} onChange={event => setNewNotice(event.target.value)} className="mt-6 h-32 w-full resize-none rounded-lg border border-[#f8f2e8]/20 bg-white/10 p-3 text-sm outline-none placeholder:text-[#d6ccc0]" placeholder="Write an announcement for the institute..." /><button onClick={publish} className="mt-4 rounded-md bg-[#f8f2e8] px-4 py-3 text-xs font-bold text-[#1c1b19]"><Send className="mr-2 inline h-4 w-4" />Publish announcement</button><p className="mt-4 text-xs text-[#d7d0c5]">Audience routing can be configured for administrators, teachers and students in the production notification service.</p></section><section className="metric-card rounded-[.9rem] p-6"><SectionTitle eyebrow="Recent messages" title="The latest word." /><div className="mt-5 space-y-0">{announcements.map((notice, index) => <article className="table-row py-5" key={`${notice.title}-${index}`}><div className="flex items-start justify-between gap-4"><div><span className="eyebrow text-[#906143]">{notice.audience}</span><h3 className="mt-2 text-base font-bold">{notice.title}</h3><p className="mt-2 text-xs text-[#746c61]">{notice.by} · {notice.date}</p></div><button onClick={() => toast.message("Announcement actions opened") } className="rounded p-2 hover:bg-[#e8e0d2]"><MoreHorizontal className="h-4 w-4" /></button></div></article>)}</div></section></div></div>;
+  }
+
+  function SettingsPageV3() {
+    const updatePreference = <Key extends keyof NotificationPreferences>(key: Key, value: NotificationPreferences[Key]) => setNotificationPreferences(current => ({ ...current, [key]: value }));
+    const enablePush = async () => {
+      if (notificationPreferences.pushEnabled) { updatePreference("pushEnabled", false); toast.message("Mobile push alerts paused"); return; }
+      if (!("Notification" in window)) { toast.error("This browser does not support push notifications."); return; }
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") { updatePreference("pushEnabled", true); toast.success("Mobile push alerts enabled"); }
+      else toast.message("Browser permission is needed before push alerts can be enabled.");
+    };
+    const Toggle = ({ checked, onClick, label, description, accent = "ink" }: { checked: boolean; onClick: () => void; label: string; description: string; accent?: "ink" | "clay" }) => <div className="flex items-center gap-4 py-4"><div className="min-w-0 flex-1"><p className="text-sm font-bold">{label}</p><p className="mt-1 text-xs leading-relaxed text-[#756c61]">{description}</p></div><button type="button" role="switch" aria-checked={checked} onClick={onClick} className={`relative h-10 w-16 shrink-0 overflow-hidden rounded-full transition-colors ${checked ? accent === "clay" ? "bg-[#754936]" : "bg-[#1c1b19]" : "bg-[#d8d0c3]"}`}><span className={`absolute left-1 top-1 h-8 w-8 rounded-full bg-[#fffaf2] shadow-sm transition-transform ${checked ? "translate-x-6" : "translate-x-0"}`} /></button></div>;
+    const isStudent = user?.role === "student";
+    return <div className="space-y-6"><PageIntro eyebrow="Personal settings" title={isStudent ? "Your picture, your privacy." : "Alerts, on your terms."} text={isStudent ? "Control which people in your learning community can recognise you from your profile picture." : "Choose which fee and announcement updates can reach this device. Your selections are saved on this device and respected across the portal."} />{isStudent && <section className="grid gap-5 xl:grid-cols-[1fr_.78fr]"><div className="metric-card rounded-[.9rem] p-5 sm:p-6"><div className="flex items-start gap-4"><StudentAvatar name={user.name} src={activeStudentAvatar} size="lg" /><div><p className="eyebrow text-[#766d61]">Photo privacy</p><h2 className="editorial-copy mt-2 text-4xl leading-none">Choose your audience.</h2><p className="mt-3 max-w-md text-sm leading-relaxed text-[#756c61]">You can keep your photo visible to teaching staff while choosing whether classmates see it in shared learning spaces.</p></div></div><div className="mt-6 divide-y divide-[#1c1b19]/10 border-y border-[#1c1b19]/10"><Toggle checked={profilePhotoPrivacy.visibleToTeachers} onClick={() => updateProfilePhotoPrivacy({ ...profilePhotoPrivacy, visibleToTeachers: !profilePhotoPrivacy.visibleToTeachers })} label="Show photo to teachers" description="Teachers can see your profile picture in attendance and assigned-student records." accent="clay" /><Toggle checked={profilePhotoPrivacy.visibleToClassmates} onClick={() => updateProfilePhotoPrivacy({ ...profilePhotoPrivacy, visibleToClassmates: !profilePhotoPrivacy.visibleToClassmates })} label="Show photo to classmates" description="Classmates can see your photo only in shared learning and class spaces." /></div></div><aside className="rounded-[.9rem] bg-[#e9e1d2] p-5 sm:p-6"><p className="eyebrow text-[#736655]">Current visibility</p><h2 className="editorial-copy mt-2 text-4xl leading-none">{profilePhotoPrivacy.visibleToTeachers || profilePhotoPrivacy.visibleToClassmates ? "Visible with care." : "Private by choice."}</h2><div className="mt-6 space-y-3 text-sm leading-relaxed text-[#62594e]"><p className="border-t border-[#1c1b19]/10 pt-3">Teachers: <strong>{profilePhotoPrivacy.visibleToTeachers ? "Can see your photo" : "See your initials instead"}</strong></p><p className="border-t border-[#1c1b19]/10 pt-3">Classmates: <strong>{profilePhotoPrivacy.visibleToClassmates ? "Can see your photo" : "See your initials instead"}</strong></p></div><p className="mt-6 text-xs leading-relaxed text-[#756c61]">You always see your own picture in your dashboard and settings, regardless of these choices.</p></aside></section>}<section className="grid gap-5 xl:grid-cols-[1fr_.78fr]"><div className="metric-card rounded-[.9rem] p-5 sm:p-6"><div className="flex items-start gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#1c1b19] text-[#faf5eb]"><Bell className="h-5 w-5" /></span><div><p className="eyebrow text-[#766d61]">Device alerts</p><h2 className="editorial-copy mt-2 text-4xl leading-none">Stay in the loop.</h2></div></div><div className="mt-6 divide-y divide-[#1c1b19]/10 border-y border-[#1c1b19]/10"><Toggle checked={notificationPreferences.pushEnabled} onClick={enablePush} label="Mobile push notifications" description="Allow this browser to show timely LMS alerts on this device." /><Toggle checked={notificationPreferences.quietHours} onClick={() => updatePreference("quietHours", !notificationPreferences.quietHours)} label="Quiet hours" description="Hold non-urgent announcements between 10 PM and 7 AM." /></div></div><aside className="rounded-[.9rem] bg-[#ead6c2] p-5 sm:p-6"><p className="eyebrow text-[#805f4c]">Delivery summary</p><h2 className="editorial-copy mt-2 text-4xl leading-none text-[#543a2b]">Your alert plan.</h2><div className="mt-7 space-y-3">{[{ label: "Device alerts", value: notificationPreferences.pushEnabled ? "Enabled" : "Paused" }, { label: "Fee reminders", value: notificationPreferences.feeReminders ? notificationPreferences.dueDay : "Paused" }, { label: "Announcements", value: notificationPreferences.announcementAlerts ? "Enabled" : "Paused" }].map(item => <div key={item.label} className="flex items-center justify-between border-t border-[#7f5d4b]/15 pt-3 text-sm"><span>{item.label}</span><strong>{item.value}</strong></div>)}</div><button onClick={() => toast.success("Notification preferences saved", { description: "Your device choices will be used for future LMS alerts." })} className="mt-7 min-h-12 w-full rounded-lg bg-[#543a2b] px-4 py-3 text-sm font-bold text-white">Save notification preferences</button></aside></section><section className="metric-card rounded-[.9rem] p-5 sm:p-6"><SectionTitle eyebrow="What reaches you" title="Choose the useful alerts." /><div className="mt-5 divide-y divide-[#1c1b19]/10"><Toggle checked={notificationPreferences.feeReminders} onClick={() => updatePreference("feeReminders", !notificationPreferences.feeReminders)} label="Fee reminders" description="Receive upcoming-due, overdue, and verified payment notifications." accent="clay" /><Toggle checked={notificationPreferences.announcementAlerts} onClick={() => updatePreference("announcementAlerts", !notificationPreferences.announcementAlerts)} label="Institute announcements" description="Receive announcements relevant to your courses, role, and institute activity." /></div></section></div>;
   }
 
   function SettingsPageV2() {

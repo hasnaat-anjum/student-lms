@@ -4,7 +4,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { getMonthlyInstitutionTrends, updateUserProfileImage } from "./db";
+import { getMonthlyInstitutionTrends, updateUserProfileImage, updateUserProfilePhotoPrivacy } from "./db";
 import { createCloudinaryUploadSignature, createPaymentInitiation, getIntegrationReadiness, PAYMENT_PROVIDERS } from "./integrations";
 import { parseProfilePhotoDataUrl } from "./profilePhoto";
 import { storagePut } from "./storage";
@@ -137,6 +137,9 @@ export const appRouter = router({
         await updateUserProfileImage(ctx.user.id, url);
         return { profileImageUrl: url };
       }),
+    updatePhotoPrivacy: protectedProcedure
+      .input(z.object({ visibleToTeachers: z.boolean(), visibleToClassmates: z.boolean() }))
+      .mutation(async ({ ctx, input }) => updateUserProfilePhotoPrivacy(ctx.user.id, input)),
   }),
 });
 
