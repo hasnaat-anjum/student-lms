@@ -56,6 +56,9 @@ html { background: var(--background); }
 body { margin: 0; background: var(--background); color: var(--foreground); font-family: "DM Sans", system-ui, sans-serif; }
 button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 2px solid #8d603f; outline-offset: 3px; }
+::selection { background: #d8c4aa; color: #1c1b19; }
 
 .paper-backdrop {
   background-color: #f4efe5;
@@ -69,13 +72,36 @@ button { cursor: pointer; }
 .hairline { height: 1px; background: currentColor; opacity: .24; }
 .quiet-grid { background-image: linear-gradient(to right, rgba(28,27,25,.07) 1px, transparent 1px), linear-gradient(to bottom, rgba(28,27,25,.07) 1px, transparent 1px); background-size: 36px 36px; }
 .metric-card { background: rgba(252,250,245,.77); border: 1px solid rgba(83,77,67,.22); box-shadow: 0 12px 30px rgba(67,58,45,.045); }
-.nav-active { background: #1c1b19; color: #f8f3e9; }
+.nav-active { background: #1c1b19; color: #f8f3e9; box-shadow: 0 6px 16px rgba(28,27,25,.12); }
 .nav-idle { color: #5e5a53; }
-.nav-idle:hover { background: #e8e0d2; color: #1c1b19; }
+.nav-idle:hover { background: rgba(232,224,210,.74); color: #1c1b19; }
 .table-row + .table-row { border-top: 1px solid rgba(83,77,67,.15); }
 .soft-shadow { box-shadow: 0 24px 60px rgba(58,47,32,.12); }
+.ledger-students, .ledger-fees { display: grid; align-items: center; }
+.ledger-students { grid-template-columns: minmax(250px, 1.45fr) minmax(190px, 1fr) minmax(104px, .5fr) minmax(100px, .45fr) 42px; }
+.ledger-fees { grid-template-columns: minmax(300px, 1.35fr) minmax(150px, .7fr) minmax(150px, .65fr) minmax(105px, .42fr); }
+.attendance-ledger { display: grid; grid-template-columns: minmax(0, 1fr) 180px 92px; align-items: center; }
+.ledger-students > *, .ledger-fees > *, .attendance-ledger > * { min-width: 0; }
+.ledger-students .ledger-detail, .ledger-fees .ledger-detail { color: #746b60; font-size: .76rem; line-height: 1.35; }
+.ledger-row { transition: background-color 160ms cubic-bezier(.23,1,.32,1); }
+.ledger-row:hover { background: rgba(233,225,210,.45); }
+.institution-seal { background: conic-gradient(from 210deg, #1c1b19, #4c463d, #1c1b19); box-shadow: inset 0 0 0 2px #f7f2e9, 0 5px 13px rgba(28,27,25,.16); }
 
 @media (max-width: 639px) {
+  .ledger-students { grid-template-columns: minmax(0, 1fr) auto auto; gap: .55rem; }
+  .ledger-students > :nth-child(2), .ledger-students > :nth-child(5) { display: none; }
+  .ledger-students > :nth-child(1) { grid-column: 1; }
+  .ledger-students > :nth-child(3) { grid-column: 2; justify-self: end; }
+  .ledger-students > :nth-child(4) { grid-column: 3; justify-self: end; }
+  .ledger-fees { grid-template-columns: minmax(0, 1fr) auto auto; gap: .65rem; }
+  .ledger-fees > :nth-child(3) { display: none; }
+  .ledger-fees > :nth-child(1) { grid-column: 1; }
+  .ledger-fees > :nth-child(2) { grid-column: 2; justify-self: end; }
+  .ledger-fees > :nth-child(4) { grid-column: 3; justify-self: end; }
+  .attendance-ledger { grid-template-columns: minmax(0, 1fr) 72px; gap: .75rem; }
+  .attendance-ledger > :nth-child(2) { display: none; }
+  .attendance-ledger > :nth-child(1) { grid-column: 1; }
+  .attendance-ledger > :nth-child(3) { grid-column: 2; justify-self: end; }
   .metric-card.overflow-hidden:has(> .grid > :nth-child(5)) > .grid {
     grid-template-columns: minmax(0, 1fr) 58px 82px !important;
     gap: .5rem;
@@ -111,4 +137,8 @@ button { cursor: pointer; }
   .lift:hover { transform: translateY(-2px); box-shadow: 0 18px 38px rgba(58,47,32,.12); }
   button { transition: transform 130ms cubic-bezier(.23,1,.32,1), background-color 160ms cubic-bezier(.23,1,.32,1), color 160ms cubic-bezier(.23,1,.32,1); }
   button:active { transform: scale(.975); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }

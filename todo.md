@@ -37,3 +37,6 @@
 - [x] Verify the updated mobile LMS experience across representative role screens.
 - [x] Add a mobile-friendly settings page for fee reminder and announcement notification preferences.
 - [x] Add settings navigation access and verify preference interactions across role portals.
+- [x] Audit and refine the whole-site visual hierarchy, information density, and role-specific interaction patterns.
+- [x] Improve navigation, action affordances, feedback states, accessibility, and responsive product polish across portals.
+- [x] Validate the optimized desktop and mobile experiences for administrator, teacher, and student workflows.
