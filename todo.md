@@ -26,3 +26,5 @@
 - [x] Align essential mobile table cells into stable explicit grid positions.
 - [x] Align essential mobile table cells into stable explicit grid positions.
 - [x] Stabilize compact mobile register column widths for consistent header and control alignment.
+- [x] Add an admin dashboard chart comparing monthly fee collection and attendance trends.
+- [x] Verify the new admin trend chart at desktop and mobile breakpoints.
