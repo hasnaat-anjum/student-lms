@@ -89,6 +89,13 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function updateUserProfileImage(userId: number, profileImageUrl: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is unavailable");
+  await db.update(users).set({ profileImageUrl }).where(eq(users.id, userId));
+  return { profileImageUrl };
+}
+
 export type MonthlyInstitutionTrend = {
   month: string;
   fees: number;

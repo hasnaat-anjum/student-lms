@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { profilePhotoStorageKey, validateProfilePhotoFile } from "@/lib/profilePhoto";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -30,7 +31,7 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 type Locale = "en" | "ur";
@@ -174,6 +175,7 @@ export default function Home() {
   const [invoicePaid, setInvoicePaid] = useState(false);
   const [assignmentSubmitted, setAssignmentSubmitted] = useState(false);
   const [quizDone, setQuizDone] = useState(false);
+  const [profileImagePreview, setProfileImagePreview] = useState("");
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>(() => {
     if (typeof window === "undefined") return { pushEnabled: false, feeReminders: true, announcementAlerts: true, dueDay: "3 days before", quietHours: true };
     const saved = window.localStorage.getItem("student-lms-notification-preferences");
@@ -189,6 +191,13 @@ export default function Home() {
       toast.success(`${data.user.name} signed in`, { description: `Role verified: ${data.user.role}` });
     },
     onError: () => toast.error("Login could not be verified", { description: "Please use the credentials shown for the selected portal." }),
+  });
+  const profilePhotoUpload = trpc.profile.updatePhoto.useMutation({
+    onSuccess: data => {
+      setProfileImagePreview(data.profileImageUrl);
+      toast.success("Profile photo saved securely", { description: "Your new picture is now available across the LMS." });
+    },
+    onError: () => toast.success("Profile photo saved on this device", { description: "The demo keeps your picture in this browser until a production account is connected." }),
   });
 
   const currentMenu = useMemo(() => {
@@ -217,6 +226,16 @@ export default function Home() {
     if (previewPage && allowedPreviewPages[previewRole].includes(previewPage)) setPage(previewPage);
   }, []);
 
+  useEffect(() => {
+    if (user?.role !== "student") return;
+    const storageKey = profilePhotoStorageKey(user.rollNo ?? user.name);
+    const saved = window.localStorage.getItem(storageKey);
+    if (saved) {
+      setProfileImagePreview(saved);
+      setStudents(current => current.map(student => student.name === user.name ? { ...student, avatar: saved } : student));
+    }
+  }, [user]);
+
   const setDemoRole = (nextRole: Role) => {
     setRole(nextRole);
     setIdentity(roleAccess[nextRole].account);
@@ -228,7 +247,33 @@ export default function Home() {
     login.mutate({ identity, password, role });
   };
 
-  const activeStudentAvatar = user?.role === "student" ? students.find(student => student.name === user.name)?.avatar : undefined;
+  const activeStudentAvatar = user?.role === "student" ? profileImagePreview || students.find(student => student.name === user.name)?.avatar : undefined;
+
+  const handleProfilePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const error = validateProfilePhotoFile(file);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result);
+      const storageKey = profilePhotoStorageKey(user?.rollNo ?? user?.name ?? "student");
+      setProfileImagePreview(dataUrl);
+      window.localStorage.setItem(storageKey, dataUrl);
+      setStudents(current => current.map(student => student.name === user?.name ? { ...student, avatar: dataUrl } : student));
+      const demoSession = Boolean(window.localStorage.getItem("student-lms-demo-token"));
+      if (demoSession) {
+        toast.success("Profile photo updated", { description: "Your picture is saved on this device and shown across the student dashboard." });
+      } else {
+        profilePhotoUpload.mutate({ dataUrl });
+      }
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  };
 
   const signOut = () => {
     localStorage.removeItem("student-lms-demo-session");
@@ -328,7 +373,7 @@ export default function Home() {
       case "learning": return <LearningPage />;
       case "reports": return <ReportsPage />;
       case "announcements": return <AnnouncementsPage />;
-      case "settings": return <SettingsPage />;
+      case "settings": return <SettingsPageV2 />;
       default: return <OverviewPage />;
     }
   }
@@ -338,7 +383,7 @@ export default function Home() {
     const teacher = user?.role === "teacher";
     return <div className="space-y-7">
       <section className="grid gap-5 xl:grid-cols-[1.6fr_.9fr]">
-        <div className="relative overflow-hidden rounded-[.9rem] bg-[#1c1b19] p-6 text-[#f8f2e8] md:p-9"><div className="absolute -right-16 -top-16 h-64 w-64 rounded-full border border-[#f8f2e8]/15" /><p className="eyebrow text-[#d9c9b3]">Saturday, 22 August 2026</p><h2 className={`editorial-title relative mt-6 max-w-xl text-5xl font-semibold leading-[.86] md:text-7xl ${locale === "ur" ? "urdu leading-[1] tracking-normal" : ""}`}>{tr(locale, admin ? "The institute, at a glance." : teacher ? "Teaching, in good order." : "A clear way forward.", admin ? "انسٹی ٹیوٹ، ایک نظر میں" : teacher ? "تدریس، بہترین ترتیب کے ساتھ" : "آگے بڑھنے کا واضح راستہ")}</h2><p className={`relative mt-6 max-w-lg text-sm leading-relaxed text-[#dfd8cc] ${locale === "ur" ? "urdu text-base" : ""}`}>{tr(locale, admin ? "Today’s learning pulse brings enrolment, finance and faculty activity into a single considered view." : teacher ? "Your class list, review queue and attendance tools are ready for the day’s work." : "Your next lesson, upcoming fee date and recent academic progress are gathered here.", admin ? "آج کی تعلیمی سرگرمیاں، داخلہ، فنانس اور اساتذہ کی پیش رفت ایک جگہ۔" : teacher ? "آپ کی کلاس لسٹ، اسائنمنٹ ریویو اور حاضری کے تمام ٹولز تیار ہیں۔" : "اگلا سبق، فیس کی تاریخ اور تعلیمی پیش رفت یہاں موجود ہیں۔")}</p><button onClick={() => setPage(admin ? "reports" : teacher ? "attendance" : "learning")} className="relative mt-8 inline-flex items-center gap-2 rounded-md bg-[#f8f2e8] px-4 py-2.5 text-xs font-bold text-[#1c1b19]">{tr(locale, admin ? "Open institutional report" : teacher ? "Take today’s attendance" : "Continue learning", admin ? "ادارے کی رپورٹ" : teacher ? "آج کی حاضری" : "سیکھنا جاری رکھیں")}<ArrowDownRight className="h-4 w-4" /></button></div>
+        <div className="relative overflow-hidden rounded-[.9rem] bg-[#1c1b19] p-6 text-[#f8f2e8] md:p-9"><div className="absolute -right-16 -top-16 h-64 w-64 rounded-full border border-[#f8f2e8]/15" /><div className="relative flex flex-wrap items-center justify-between gap-3"><p className="eyebrow text-[#d9c9b3]">Saturday, 22 August 2026</p>{!admin && !teacher && user && <div className="flex items-center gap-2 rounded-full border border-[#f8f2e8]/20 bg-white/5 py-1.5 pl-1.5 pr-3"><StudentAvatar name={user.name} src={activeStudentAvatar} size="sm" /><span className="text-xs font-bold">{user.name}</span></div>}</div><h2 className={`editorial-title relative mt-6 max-w-xl text-5xl font-semibold leading-[.86] md:text-7xl ${locale === "ur" ? "urdu leading-[1] tracking-normal" : ""}`}>{tr(locale, admin ? "The institute, at a glance." : teacher ? "Teaching, in good order." : "A clear way forward.", admin ? "انسٹی ٹیوٹ، ایک نظر میں" : teacher ? "تدریس، بہترین ترتیب کے ساتھ" : "آگے بڑھنے کا واضح راستہ")}</h2><p className={`relative mt-6 max-w-lg text-sm leading-relaxed text-[#dfd8cc] ${locale === "ur" ? "urdu text-base" : ""}`}>{tr(locale, admin ? "Today’s learning pulse brings enrolment, finance and faculty activity into a single considered view." : teacher ? "Your class list, review queue and attendance tools are ready for the day’s work." : "Your next lesson, upcoming fee date and recent academic progress are gathered here.", admin ? "آج کی تعلیمی سرگرمیاں، داخلہ، فنانس اور اساتذہ کی پیش رفت ایک جگہ۔" : teacher ? "آپ کی کلاس لسٹ، اسائنمنٹ ریویو اور حاضری کے تمام ٹولز تیار ہیں۔" : "اگلا سبق، فیس کی تاریخ اور تعلیمی پیش رفت یہاں موجود ہیں۔")}</p><button onClick={() => setPage(admin ? "reports" : teacher ? "attendance" : "learning")} className="relative mt-8 inline-flex items-center gap-2 rounded-md bg-[#f8f2e8] px-4 py-2.5 text-xs font-bold text-[#1c1b19]">{tr(locale, admin ? "Open institutional report" : teacher ? "Take today’s attendance" : "Continue learning", admin ? "ادارے کی رپورٹ" : teacher ? "آج کی حاضری" : "سیکھنا جاری رکھیں")}<ArrowDownRight className="h-4 w-4" /></button></div>
         <div className="metric-card rounded-[.9rem] p-6"><div className="flex items-center justify-between"><p className="eyebrow">Today’s rhythm</p><MoreHorizontal className="h-5 w-5 text-[#81786b]" /></div><div className="mt-8 space-y-0"><Timeline time="09:00" title={teacher ? "Biology — HSSC II" : "Faculty morning briefing"} tag="Now" /><Timeline time="11:30" title={teacher ? "Assignment review window" : "Monthly fee due notices"} tag="Next" /><Timeline time="14:00" title={teacher ? "Chemistry content upload" : "Parent consultation desk"} tag="Later" /></div></div>
       </section>
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{admin ? <><Metric label="Active learners" value="1,248" trend="8.2%" /><Metric label="August collection" value="3.48M" trend="12.4%" tone="olive" /><Metric label="Average attendance" value="91.6%" trend="2.1%" tone="clay" /><Metric label="Open actions" value="42" trend="Today" tone="plain" /></> : teacher ? <><Metric label="My learners" value="115" trend="4 classes" /><Metric label="Marked today" value="34" trend="29.6%" tone="olive" /><Metric label="To review" value="18" trend="Assignments" tone="clay" /><Metric label="Course progress" value="68%" trend="On track" tone="plain" /></> : <><Metric label="My attendance" value="94%" trend="Excellent" /><Metric label="Course progress" value="72%" trend="Biology" tone="olive" /><Metric label="Fee balance" value={invoicePaid ? "0" : "10k"} trend={invoicePaid ? "Cleared" : "Due 28 Aug"} tone="clay" /><Metric label="Latest marks" value="86%" trend="Biology quiz" tone="plain" /></>}</section>
@@ -383,6 +428,20 @@ export default function Home() {
   function AnnouncementsPage() {
     const publish = () => { if (!newNotice.trim()) return; setAnnouncements([{ title: newNotice, audience: "All portal users", date: "Just now", by: user?.name ?? "Academic Office" }, ...announcements]); setNewNotice(""); toast.success("Announcement published to the in-app noticeboard"); };
     return <div className="space-y-6"><PageIntro eyebrow="Noticeboard" title="Communication, composed." text="Keep students, teachers and administrators aligned with time-sensitive academic and financial updates." /><div className="grid gap-5 xl:grid-cols-[.8fr_1.2fr]"><section className="rounded-[.9rem] bg-[#1c1b19] p-6 text-[#f8f2e8]"><p className="eyebrow text-[#d9c9b3]">New notification</p><h3 className="editorial-copy mt-3 text-4xl">Say it clearly.</h3><textarea value={newNotice} onChange={event => setNewNotice(event.target.value)} className="mt-6 h-32 w-full resize-none rounded-lg border border-[#f8f2e8]/20 bg-white/10 p-3 text-sm outline-none placeholder:text-[#d6ccc0]" placeholder="Write an announcement for the institute..." /><button onClick={publish} className="mt-4 rounded-md bg-[#f8f2e8] px-4 py-3 text-xs font-bold text-[#1c1b19]"><Send className="mr-2 inline h-4 w-4" />Publish announcement</button><p className="mt-4 text-xs text-[#d7d0c5]">Audience routing can be configured for administrators, teachers and students in the production notification service.</p></section><section className="metric-card rounded-[.9rem] p-6"><SectionTitle eyebrow="Recent messages" title="The latest word." /><div className="mt-5 space-y-0">{announcements.map((notice, index) => <article className="table-row py-5" key={`${notice.title}-${index}`}><div className="flex items-start justify-between gap-4"><div><span className="eyebrow text-[#906143]">{notice.audience}</span><h3 className="mt-2 text-base font-bold">{notice.title}</h3><p className="mt-2 text-xs text-[#746c61]">{notice.by} · {notice.date}</p></div><button onClick={() => toast.message("Announcement actions opened") } className="rounded p-2 hover:bg-[#e8e0d2]"><MoreHorizontal className="h-4 w-4" /></button></div></article>)}</div></section></div></div>;
+  }
+
+  function SettingsPageV2() {
+    const updatePreference = <Key extends keyof NotificationPreferences>(key: Key, value: NotificationPreferences[Key]) => setNotificationPreferences(current => ({ ...current, [key]: value }));
+    const enablePush = async () => {
+      if (notificationPreferences.pushEnabled) { updatePreference("pushEnabled", false); toast.message("Mobile push alerts paused"); return; }
+      if (!("Notification" in window)) { toast.error("This browser does not support push notifications."); return; }
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") { updatePreference("pushEnabled", true); toast.success("Mobile push alerts enabled"); }
+      else toast.message("Browser permission is needed before push alerts can be enabled.");
+    };
+    const Toggle = ({ checked, onClick, label, description, accent = "ink" }: { checked: boolean; onClick: () => void; label: string; description: string; accent?: "ink" | "clay" }) => <div className="flex items-center gap-4 py-4"><div className="min-w-0 flex-1"><p className="text-sm font-bold">{label}</p><p className="mt-1 text-xs leading-relaxed text-[#756c61]">{description}</p></div><button type="button" role="switch" aria-checked={checked} onClick={onClick} className={`relative h-10 w-16 shrink-0 overflow-hidden rounded-full transition-colors ${checked ? accent === "clay" ? "bg-[#754936]" : "bg-[#1c1b19]" : "bg-[#d8d0c3]"}`}><span className={`absolute left-1 top-1 h-8 w-8 rounded-full bg-[#fffaf2] shadow-sm transition-transform ${checked ? "translate-x-6" : "translate-x-0"}`} /></button></div>;
+    const isStudent = user?.role === "student";
+    return <div className="space-y-6"><PageIntro eyebrow="Personal settings" title={isStudent ? "Your profile, your way." : "Alerts, on your terms."} text={isStudent ? "Choose a photo that helps teachers and classmates recognise you, then control which fee and institute updates reach this device." : "Choose which fee and announcement updates can reach this device. Your selections are saved on this device and respected across the portal."} />{isStudent && <section className="grid gap-5 xl:grid-cols-[1fr_.78fr]"><div className="metric-card rounded-[.9rem] p-5 sm:p-6"><p className="eyebrow text-[#766d61]">Student profile</p><div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-center"><StudentAvatar name={user.name} src={activeStudentAvatar} size="lg" /><div className="min-w-0"><h2 className="editorial-copy text-4xl leading-none">{user.name}</h2><p className="mt-2 text-sm text-[#756c61]">{user.rollNo ?? "Student profile"} · {roleAccess.student.label}</p><p className="mt-4 text-xs leading-relaxed text-[#756c61]">Use a clear, respectful image. PNG, JPEG, and WebP files up to 4 MB are supported.</p><label htmlFor="profile-photo-input" className="mt-5 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg bg-[#1c1b19] px-4 py-3 text-sm font-bold text-white"><Plus className="h-4 w-4" />Choose a new photo</label><input id="profile-photo-input" type="file" accept="image/png,image/jpeg,image/webp" onChange={handleProfilePhotoChange} className="sr-only" /></div></div></div><aside className="rounded-[.9rem] bg-[#e9e1d2] p-5 sm:p-6"><p className="eyebrow text-[#736655]">Photo visibility</p><h2 className="editorial-copy mt-2 text-4xl leading-none">Seen where it helps.</h2><ul className="mt-6 space-y-3 text-sm leading-relaxed text-[#62594e]"><li className="border-t border-[#1c1b19]/10 pt-3">Your student dashboard header</li><li className="border-t border-[#1c1b19]/10 pt-3">Teacher attendance register</li><li className="border-t border-[#1c1b19]/10 pt-3">Administrator learner directory</li></ul><p className="mt-6 text-xs leading-relaxed text-[#756c61]">In the demo, your change is saved only in this browser. Authenticated production accounts store the image securely with the LMS profile record.</p></aside></section>}<section className="grid gap-5 xl:grid-cols-[1fr_.78fr]"><div className="metric-card rounded-[.9rem] p-5 sm:p-6"><div className="flex items-start gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#1c1b19] text-[#faf5eb]"><Bell className="h-5 w-5" /></span><div><p className="eyebrow text-[#766d61]">Device alerts</p><h2 className="editorial-copy mt-2 text-4xl leading-none">Stay in the loop.</h2></div></div><div className="mt-6 border-y border-[#1c1b19]/10"><Toggle checked={notificationPreferences.pushEnabled} onClick={enablePush} label="Mobile push notifications" description="Allow this browser to show timely LMS alerts on this device." /><div className="border-t border-[#1c1b19]/10"><Toggle checked={notificationPreferences.quietHours} onClick={() => updatePreference("quietHours", !notificationPreferences.quietHours)} label="Quiet hours" description="Hold non-urgent announcements between 10 PM and 7 AM." /></div></div><p className="mt-4 rounded-lg bg-[#e9e1d2] p-3 text-xs leading-relaxed text-[#695f54]">Push alerts require browser permission. Urgent fee notices can still appear inside the LMS noticeboard.</p></div><aside className="rounded-[.9rem] bg-[#ead6c2] p-5 sm:p-6"><p className="eyebrow text-[#805f4c]">Delivery summary</p><h2 className="editorial-copy mt-2 text-4xl leading-none text-[#543a2b]">Your alert plan.</h2><div className="mt-7 space-y-3">{[{ label: "Device alerts", value: notificationPreferences.pushEnabled ? "Enabled" : "Paused" }, { label: "Fee reminders", value: notificationPreferences.feeReminders ? notificationPreferences.dueDay : "Paused" }, { label: "Announcements", value: notificationPreferences.announcementAlerts ? "Enabled" : "Paused" }].map(item => <div key={item.label} className="flex items-center justify-between border-t border-[#7f5d4b]/15 pt-3 text-sm"><span>{item.label}</span><strong>{item.value}</strong></div>)}</div><button onClick={() => toast.success("Notification preferences saved", { description: "Your device choices will be used for future LMS alerts." })} className="mt-7 min-h-12 w-full rounded-lg bg-[#543a2b] px-4 py-3 text-sm font-bold text-white">Save notification preferences</button></aside></section><section className="metric-card rounded-[.9rem] p-5 sm:p-6"><SectionTitle eyebrow="What reaches you" title="Choose the useful alerts." /><div className="mt-5 divide-y divide-[#1c1b19]/10"><Toggle checked={notificationPreferences.feeReminders} onClick={() => updatePreference("feeReminders", !notificationPreferences.feeReminders)} label="Fee reminders" description="Receive upcoming-due, overdue, and verified payment notifications." accent="clay" /><Toggle checked={notificationPreferences.announcementAlerts} onClick={() => updatePreference("announcementAlerts", !notificationPreferences.announcementAlerts)} label="Institute announcements" description="Receive announcements relevant to your courses, role, and institute activity." /></div><div className="mt-2 grid gap-3 rounded-xl bg-[#faf7f0] p-4 sm:grid-cols-[1fr_auto] sm:items-center"><div><p className="text-sm font-bold">Fee reminder timing</p><p className="mt-1 text-xs text-[#756c61]">Choose when the first due-date prompt arrives.</p></div><select aria-label="Fee reminder timing" value={notificationPreferences.dueDay} onChange={event => updatePreference("dueDay", event.target.value)} className="min-h-11 rounded-lg border border-[#cfc5b5] bg-white px-3 text-sm font-semibold outline-none"><option>7 days before</option><option>3 days before</option><option>On due date</option></select></div></section></div>;
   }
 
   function SettingsPage() {

@@ -43,3 +43,9 @@
 - [x] Define and integrate a custom institute identity system across LMS navigation and key dashboards.
 - [x] Add respectful student avatars to learner-facing records and dashboard surfaces.
 - [x] Verify personalized institute branding and avatar presentation across desktop and mobile views.
+- [x] Add a student settings flow for selecting, previewing, validating, and saving a profile picture.
+- [x] Display the saved student profile picture consistently in the personal dashboard and header.
+- [x] Verify the profile-picture update workflow on desktop and mobile student settings views.
+- [x] Show a saved profile picture on the student overview dashboard as well as the header and settings panel.
+- [x] Complete end-to-end verification of valid, invalid, and persistent student profile-photo updates across dashboard surfaces.
+- [x] Ensure client-side profile-photo validation and persistence helpers run in the LMS unit-test suite.

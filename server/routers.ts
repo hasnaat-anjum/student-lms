@@ -3,9 +3,11 @@ import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
-import { getMonthlyInstitutionTrends } from "./db";
+import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { getMonthlyInstitutionTrends, updateUserProfileImage } from "./db";
 import { createCloudinaryUploadSignature, createPaymentInitiation, getIntegrationReadiness, PAYMENT_PROVIDERS } from "./integrations";
+import { parseProfilePhotoDataUrl } from "./profilePhoto";
+import { storagePut } from "./storage";
 
 export type LmsRole = "admin" | "teacher" | "student";
 
@@ -124,6 +126,16 @@ export const appRouter = router({
           cloudName,
           apiKey,
         };
+      }),
+  }),
+  profile: router({
+    updatePhoto: protectedProcedure
+      .input(z.object({ dataUrl: z.string().min(32).max(6_000_000) }))
+      .mutation(async ({ ctx, input }) => {
+        const photo = parseProfilePhotoDataUrl(input.dataUrl);
+        const { url } = await storagePut(`users/${ctx.user.id}/profile/profile-photo.${photo.extension}`, photo.data, photo.contentType);
+        await updateUserProfileImage(ctx.user.id, url);
+        return { profileImageUrl: url };
       }),
   }),
 });
